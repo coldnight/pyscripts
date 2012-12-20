@@ -1,0 +1,180 @@
+#!/usr/bin/env python
+#-*- coding: utf8 -*-
+'''
+#=============================================================================
+#     FileName: mail.py
+#         Desc: To send email
+#       Author: cold night
+#        Email: wh_linux@126.com
+#     HomePage: http://www.linuxzen.com
+#      Version: 0.0.1
+#   LastChange: 2012-04-21 16:37:20
+#      History:
+#=============================================================================
+'''
+
+'''
+用于发送邮件,可以发送附件
+命令行程序
+'''
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import sys
+
+
+
+# 打印帮助信息
+def helpinfo():
+	print '''
+	Useage: pymail -u user@domain -p passwd -h smtp server host -t to who [-a attachment file path] [-n attachment name]
+	Useage: email content use . to end
+	-h  specify smtp server host
+	-u	which user you login the smtp server,and must with it domain
+	-p  the password of the smtp user
+	-t  The email recipient,multiple addresses can use ',' split
+	-a  Add attachment
+	-n  Secify attachment name in the email
+
+	Author:cold night(wh_linux@126.com)
+	Homepge:http://www.linuxzen.com
+	'''
+
+
+# 所有选项
+options = ['-t', '-a', '-n', '-h', '-u', '-p', '-s']
+
+# 获取选项长度
+argvnum = len(sys.argv)
+
+# 检测命令行参数
+for i in range(argvnum):
+	if ( i %2 != 0):
+		if (sys.argv[i] not in options):
+			print 'Unknow option ', sys.argv[i] , ', Please use -h see help!'
+			sys.exit(3)
+
+# 如果是-h或者没有命令行参数则显示帮助
+try:
+	if sys.argv[1] == '-h' or len(sys.argv) == 0:
+		helpinfo()
+except:
+	helpinfo()
+
+
+# 检测-n参数
+if ('-n' in sys.argv) and ('-a' not in sys.argv):
+	print 'Error:option "-n" must use after -a'
+	sys.exit(2)
+
+# 下面则是获取各个参数内容
+try:
+	tmpmailto = sys.argv[sys.argv.index('-t')  + 1]
+	if ',' in tmpmailto:
+		mailto = tmpmailto.split(',')
+	else:
+		mailto = [tmpmailto,]
+except ValueError:
+	print 'Error: need Mail Recipient'
+	sys.exit(1)
+
+haveattr=True
+
+try:
+	attrpath = sys.argv[sys.argv.index('-a') + 1]
+	try:
+		attrname = sys.argv[sys.argv.index('-n') +1 ]
+	except ValueError:
+		attrname = attrpath.split('/')[-1]
+except:
+	attrname = None
+	haveattr = False
+	attrpath = None
+
+
+try:
+	mail_host = sys.argv[sys.argv.index('-h') +1]
+except ValueError:
+	print 'Waring: No specify smtp server use 127.0.0.1'
+	mail_host = '127.0.0.1'
+
+
+try:
+	mail_useremail = sys.argv[sys.argv.index('-u') +1]
+except ValueError:
+	print 'Waring: No specify user, use root'
+	mail_useremail = 'root@localhost'
+
+try:
+	mail_sub = sys.argv[sys.argv.index('-s') + 1]
+except:
+	mail_sub = 'No Subject'
+
+mail_user = mail_useremail.split('@')[0]
+mail_postfix = mail_useremail.split('@')[1]
+
+try:
+	mail_pass = sys.argv[sys.argv.index('-p') +1]
+except ValueError:
+	mail_pass = ''
+
+
+
+
+# 定义邮件发送函数
+def send_mail(to_list, sub, content, haveattr, attrpath, attrname):
+	me = mail_user + "<" + mail_user+"@"+mail_postfix +">"
+
+	# 判断是否有附件
+	if (haveattr):
+		if (not attrpath):
+			print 'Error : no input file of attachments'
+			return False
+
+		# 有附件则创建一个带附件的实例
+		msg = MIMEMultipart()
+
+		# 构造附件
+		att = MIMEText(open(attrpath, 'rb').read(),'base64', 'utf8')
+		att["Content-Type"] = 'application/octest-stream'
+		att["Content-Disposition"] = 'attachment;filename="'+ attrname +'"'
+		msg.attach(att)
+		msg.attach(MIMEText(content))
+	else:
+		# 无责创建一个文本的实例
+		msg = MIMEText(content)
+
+
+	# 邮件头
+	msg['Subject'] = sub
+	msg['From'] = me
+	msg['To'] = ";".join(to_list)
+	try:
+		# 发送邮件
+		s = smtplib.SMTP()
+		s.connect(mail_host)
+		if (mail_host != '127.0.0.1'):
+			s.login(mail_user, mail_pass)
+		s.sendmail(me, to_list, msg.as_string())
+		s.close()
+		return True
+	except Exception, e:
+		print str(e)
+		return False
+
+if __name__ == '__main__':
+
+	try:
+		content = ''
+		while True:
+			c = raw_input('')
+			if c == '.':
+				break
+			content += c + '\n'
+	except EOFError:
+		for line in sys.stdin:
+			content += line
+	if send_mail(mailto, mail_sub, content, haveattr, attrpath, attrname):
+		print "Success"
+	else:
+		print "Failed"
