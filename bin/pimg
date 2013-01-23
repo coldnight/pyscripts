@@ -1,0 +1,130 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+#
+#   Author  :   cold
+#   E-mail  :   wh_linux@126.com
+#   Date    :   13/01/21 09:54:39
+#   Desc    :   贴代码和图片
+#
+import urllib2, json
+import mimetools
+import mimetypes
+import itertools
+
+__host__ = "http://eleveni386.7axu.com"
+
+class Form(object):
+    def __init__(self):
+        self.form_fields = []
+        self.files = []
+        self.boundary = mimetools.choose_boundary()
+        self.content_type = "application/x-www-form-urlencoded"
+        return
+
+    def get_content_type(self):
+        return self.content_type
+
+    def add_field(self, name, value):
+        self.form_fields.append((name, value))
+        return
+
+    def add_file(self, fieldname, filename, fileHandle, mimetype=None):
+        body = fileHandle.read()
+        if mimetype is None:
+            mimetype = ( mimetypes.guess_type(filename)[0]
+                         or
+                         'applicatioin/octet-stream')
+        self.files.append((fieldname, filename, mimetype, body))
+        self.content_type = 'multipart/form-data; boundary=%s' % self.boundary
+
+        return
+
+    def __str__(self):
+        parts = []
+        part_boundary = '--' + self.boundary
+
+        parts.extend(
+            [ part_boundary,
+             'Content-Disposition: form-data; name="%s"' % name,
+             '',
+             value,
+             ]
+            for name, value in self.form_fields)
+        if self.files:
+            parts.extend([
+                part_boundary,
+                'Content-Disposition: form-data; name="%s"; filename="%s"' %\
+                (field_name, filename),
+                'Content-Type: %s' % content_type,
+                '',
+                body,
+            ] for field_name, filename, content_type, body in self.files)
+
+        flattened = list(itertools.chain(*parts))
+        flattened.append('--' + self.boundary + '--')
+        flattened.append('')
+        return '\r\n'.join(flattened)
+
+
+class HttpHelper(object):
+    def __init__(self, url = None, form = None, method = 'GET'):
+        self._url = url
+        self._form = form
+        self._body = str(form)
+        self._method = method
+        self._dst_url = None
+        if url:
+            self.make_request()
+
+    def make_request(self):
+        url = self._url
+        if not self._url.startswith('http://'):
+            url = 'http://' + self._url
+        self.request = urllib2.Request(url)
+        if self._form:
+            self.add_header("Content-Type", self._form.get_content_type())
+            self.add_header("Content-Length", len(self._body))
+            self.request.add_data(self._body)
+
+    def add_header(self, key, val):
+        self.request.add_header(key, val)
+
+    def change(self, url, params = {}, method = 'GET'):
+        self._url = url
+        self._params = params
+        self._method = method
+        self.make_request()
+
+    def open(self):
+        response = urllib2.urlopen(self.request)
+        content = response.read()
+        self._dst_url = response.geturl()
+        try:
+            return json.loads(content)
+        except:
+            return content
+
+if __name__ == "__main__":
+    import argparse
+    import os
+    parser = argparse.ArgumentParser()
+    parser.add_argument(dest="path", nargs="?")
+    args = parser.parse_args()
+    if args.path:
+        path = args.path
+    else:
+        path = r"/tmp/tmpscrot.png"
+        os.system("scrot -s {0}".format(path))
+    form = Form()
+    filename = os.path.split(path)[-1]
+    form.add_file(fieldname='mypic', filename=filename,
+                  fileHandle=open(path))
+    http = HttpHelper( __host__ + '/Image/', form)
+    url = http.open()
+    try:
+        from PyQt4.QtGui import QApplication
+        app = QApplication([])
+        cb = QApplication.clipboard()
+        cb.setText(url.strip())
+    except:
+        print url

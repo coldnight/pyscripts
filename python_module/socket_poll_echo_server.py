@@ -1,3 +1,12 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+#
+#   Author  :   wh
+#   E-mail  :   wh_linux@126.com
+#   Date    :   13/01/06 09:53:13
+#   Desc    :
+#
+
 import select
 import socket
 import sys
